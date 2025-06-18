@@ -28,31 +28,31 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_DISTANCE_KM, default=DEFAULT_DISTANCE_KM): vol.All(vol.Coerce(float), vol.Range(min=1, max=100)),
 })
 
-# URL for the latest weather data
-URL = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/daily/csv/HABP_1D_LATEST.csv.zip"
+URL_HOURLY = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/hourly/csv/HABP_1H_SYNOP_LATEST.csv.zip"
+URL_DAILY = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/daily/csv/HABP_1D_LATEST.csv.zip"
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     name = config.get(CONF_NAME)
     distance_km = config.get(CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM)
     sensors = []
     try:
-        data = await hass.async_add_executor_job(fetch_and_process_data, hass, distance_km)
+        data, station_info = await hass.async_add_executor_job(process_daily_data, hass, distance_km)
         sensors.append(HungarometWeatherDailySensor(hass, "Mérési időpont", data["time"], None, "time"))
         sensors.append(HungarometWeatherDailySensor(hass, "Napi párolgás", data["average_upe"], "mm", "average_upe"))
         sensors.append(HungarometWeatherDailySensor(hass, "Napi csapadékösszeg", data["average_rau"], "mm", "average_rau"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi vízegyenleg", data["water_balance"], "mm", "water_balance"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlaghőmérséklet", data["t"], "°C", "t"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi minimumhőmérséklet", data["tn"], "°C", "tn"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi maximumhőmérséklet", data["tx"], "°C", "tx"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg", data["sr"], "J/cm²", "sr"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg (MJ/m²)", data["sr_mj"], "MJ/m²", "sr_mj"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 5 cm-es talajhőmérséklet", data["et5"], "°C", "et5"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 10 cm-es talajhőmérséklet", data["et10"], "°C", "et10"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 20 cm-es talajhőmérséklet", data["et20"], "°C", "et20"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 50 cm-es talajhőmérséklet", data["et50"], "°C", "et50"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 100 cm-es talajhőmérséklet", data["et100"], "°C", "et100"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["tsn24"], "°C", "tsn24"))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", data["station_info"]))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi vízegyenleg", data["average_water_balance"], "mm", "average_water_balance"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlaghőmérséklet", data["average_t"], "°C", "t"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi minimumhőmérséklet", data["average_tn"], "°C", "tn"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi maximumhőmérséklet", data["average_tx"], "°C", "tx"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg", data["average_sr"], "J/cm²", "sr"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg (MJ/m²)", data["average_sr_mj"], "MJ/m²", "sr_mj"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 5 cm-es talajhőmérséklet", data["average_et5"], "°C", "et5"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 10 cm-es talajhőmérséklet", data["average_et10"], "°C", "et10"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 20 cm-es talajhőmérséklet", data["average_et20"], "°C", "et20"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 50 cm-es talajhőmérséklet", data["average_et50"], "°C", "et50"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 100 cm-es talajhőmérséklet", data["average_et100"], "°C", "et100"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["average_tsn24"], "°C", "tsn24"))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")
         return
@@ -90,23 +90,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     sensors = []
     try:
         # Use default or config value for distance_km
-        data = await hass.async_add_executor_job(fetch_and_process_data, hass, DEFAULT_DISTANCE_KM)
+        data, station_info = await hass.async_add_executor_job(process_daily_data, hass, DEFAULT_DISTANCE_KM)
         sensors.append(HungarometWeatherDailySensor(hass, "Mérési időpont", data["time"], None, "time"))
         sensors.append(HungarometWeatherDailySensor(hass, "Napi párolgás", data["average_upe"], "mm", "average_upe"))
         sensors.append(HungarometWeatherDailySensor(hass, "Napi csapadékösszeg", data["average_rau"], "mm", "average_rau"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi vízegyenleg", data["water_balance"], "mm", "water_balance"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlaghőmérséklet", data["t"], "°C", "t"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi minimumhőmérséklet", data["tn"], "°C", "tn"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi maximumhőmérséklet", data["tx"], "°C", "tx"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg", data["sr"], "J/cm²", "sr"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg (MJ/m²)", data["sr_mj"], "MJ/m²", "sr_mj"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 5 cm-es talajhőmérséklet", data["et5"], "°C", "et5"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 10 cm-es talajhőmérséklet", data["et10"], "°C", "et10"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 20 cm-es talajhőmérséklet", data["et20"], "°C", "et20"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 50 cm-es talajhőmérséklet", data["et50"], "°C", "et50"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 100 cm-es talajhőmérséklet", data["et100"], "°C", "et100"))
-        sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["tsn24"], "°C", "tsn24"))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", data["station_info"]))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi vízegyenleg", data["average_water_balance"], "mm", "average_water_balance"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlaghőmérséklet", data["average_t"], "°C", "t"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi minimumhőmérséklet", data["average_tn"], "°C", "tn"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi maximumhőmérséklet", data["average_tx"], "°C", "tx"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg", data["average_sr"], "J/cm²", "sr"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi globálsugárzás összeg (MJ/m²)", data["average_sr_mj"], "MJ/m²", "sr_mj"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 5 cm-es talajhőmérséklet", data["average_et5"], "°C", "et5"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 10 cm-es talajhőmérséklet", data["average_et10"], "°C", "et10"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 20 cm-es talajhőmérséklet", data["average_et20"], "°C", "et20"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 50 cm-es talajhőmérséklet", data["average_et50"], "°C", "et50"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 100 cm-es talajhőmérséklet", data["average_et100"], "°C", "et100"))
+        sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["average_tsn24"], "°C", "tsn24"))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")
         return
@@ -137,8 +137,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_track_time_change(hass, schedule_update, hour=9, minute=40, second=0)
 
 
-def fetch_and_process_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
-    response = requests.get(URL)
+def fetch_data(url: str) -> pd.DataFrame:
+    response = requests.get(url)
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         csv_filename = z.namelist()[0]
         with z.open(csv_filename) as csvfile:
@@ -148,6 +148,15 @@ def fetch_and_process_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
                 comment='/',
                 skipinitialspace=True
             )
+    return df
+
+
+def process_daily_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
+    df = fetch_data(URL_DAILY)
+
+    # replace -999 values with NaN
+    df.replace(-999, pd.NA, inplace=True)
+
     df.columns = df.columns.str.strip()
     columns = [
         "Time", "StationNumber", "StationName", "Latitude", "Longitude", "Elevation",
@@ -177,57 +186,24 @@ def fetch_and_process_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     df = df.sort_values(by="Distance_km")
     df = df[df["Distance_km"] <= distance_km]
     
-    upe_valid = df["upe"][df["upe"] != -999]
-    rau_valid = df["rau"][df["rau"] != -999]
-    t_valid = df["t"][df["t"] != -999]
-    tn_valid = df["tn"][df["tn"] != -999]
-    tx_valid = df["tx"][df["tx"] != -999]
-    sr_valid = df["sr"][df["sr"] != -999]
-    et5_valid = df["et5"][df["et5"] != -999]
-    et10_valid = df["et10"][df["et10"] != -999]
-    et20_valid = df["et20"][df["et20"] != -999]
-    et50_valid = df["et50"][df["et50"] != -999]
-    et100_valid = df["et100"][df["et100"] != -999]
-    tsn24_valid = df["tsn24"][df["tsn24"] != -999]
-
+    numeric_columns = [
+        "Latitude", "Longitude", "Elevation", "rau", "upe", "t", "tn", "tx", "sr",
+        "et5", "et10", "et20", "et50", "et100", "tsn24"
+    ]
+    numeric_columns = [col for col in numeric_columns if col in df.columns]
+    means = {col: (df[col].mean(skipna=True) if df[col].notna().any() else None) for col in numeric_columns}
+    means["water_balance"] = means["rau"] - means["upe"] if means["rau"] is not None and means["upe"] is not None else None
+    numeric_columns.append("water_balance")
+    means["sr_mj"] = means["sr"] * 0.01 if means["sr"] is not None else None
+    numeric_columns.append("sr_mj")
     date_iso = datetime.strptime(str(df["Time"].iloc[0]), '%Y%m%d').date().isoformat()
-    upe_mean = upe_valid.mean() if not upe_valid.empty else None
-    rau_mean = rau_valid.mean() if not rau_valid.empty else None
-    water_balance_mean = rau_mean - upe_mean if rau_mean is not None and upe_mean is not None else None
-    t_mean = t_valid.mean() if not t_valid.empty else None
-    tn_mean = tn_valid.mean() if not tn_valid.empty else None
-    tx_mean = tx_valid.mean() if not tx_valid.empty else None
-    sr_mean = sr_valid.mean() if not sr_valid.empty else None
-    sr_mj = sr_mean * 0.01 if sr_mean is not None else None
-    et5_mean = et5_valid.mean() if not et5_valid.empty else None
-    et10_mean = et10_valid.mean() if not et10_valid.empty else None
-    et20_mean = et20_valid.mean() if not et20_valid.empty else None
-    et50_mean = et50_valid.mean() if not et50_valid.empty else None
-    et100_mean = et100_valid.mean() if not et100_valid.empty else None
-    tsn24_mean = tsn24_valid.mean() if not tsn24_valid.empty else None
-
-    station_info = df[["StationNumber", "StationName"]].drop_duplicates()
+    station_info = df[["StationNumber", "StationName", "Latitude", "Longitude", "Elevation"]].drop_duplicates()
     station_info_list = station_info.to_dict(orient="records")
-
     result = {
         "time": date_iso,
-        "average_upe": upe_mean,
-        "average_rau": rau_mean,
-        "water_balance": water_balance_mean,
-        "t": t_mean,
-        "tn": tn_mean,
-        "tx": tx_mean,
-        "sr": sr_mean,
-        "sr_mj": sr_mj,
-        "et5": et5_mean,
-        "et10": et10_mean,
-        "et20": et20_mean,
-        "et50": et50_mean,
-        "et100": et100_mean,
-        "tsn24": tsn24_mean,
-        "station_info": station_info_list,
+        **{f"average_{col}": means[col] for col in numeric_columns},
     }
-    return result
+    return result, station_info_list
 
 
 class HungarometWeatherDailySensor(SensorEntity):
@@ -275,7 +251,7 @@ class HungarometWeatherDailySensor(SensorEntity):
     async def async_update_data(self):
         if not self._added:
             return  # Silently skip if entity not yet added
-        data = await self.hass.async_add_executor_job(fetch_and_process_data, self.hass)
+        data, stations = await self.hass.async_add_executor_job(process_daily_data, self.hass)
         if self._key in data:
             self._state = data[self._key]
         self.async_write_ha_state()
@@ -330,9 +306,8 @@ class HungarometStationInfoSensor(SensorEntity):
     async def async_update_data(self):
         if not self._added:
             return
-        data = await self.hass.async_add_executor_job(fetch_and_process_data, self.hass)
-        if "station_info" in data:
-            self._station_info = data["station_info"]
+        data, stations = await self.hass.async_add_executor_job(process_daily_data, self.hass)
+        self._station_info = stations
         self.async_write_ha_state()
 
     async def async_update(self):

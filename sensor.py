@@ -158,12 +158,8 @@ def fetch_and_process_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce")
     df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce")
     
-    # Use Home Assistant's home location if available
-    if hass is not None:
-        ref_lat = hass.config.latitude
-        ref_lon = hass.config.longitude
-    else:
-        ref_lat, ref_lon = 48.0288119, 21.7624586  # fallback
+    ref_lat = hass.config.latitude
+    ref_lon = hass.config.longitude
 
     # Haversine function to calculate distance
     def haversine(lat1, lon1, lat2, lon2):

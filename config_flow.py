@@ -3,8 +3,7 @@ import logging
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow
 from homeassistant.const import CONF_NAME
-from .const import DOMAIN, DEFAULT_NAME
-from .sensor import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
+from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
 
 _LOGGER = logging.getLogger(__name__)
 

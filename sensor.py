@@ -19,7 +19,6 @@ import pandas as pd
 import math
 from datetime import time, timedelta, datetime
 from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
-import pytz
 
 from .daily_sensor import HungarometWeatherDailySensor
 from .station_info_sensor import HungarometStationInfoSensor

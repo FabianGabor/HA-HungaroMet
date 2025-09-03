@@ -1,6 +1,7 @@
 from homeassistant.components.sensor import SensorEntity
 import logging
 from datetime import datetime
+from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,10 +23,9 @@ class HungarometWeatherHourlySensor(SensorEntity):
     def state(self):
         if self._key == "time" and self._state:
             try:
-                import pytz
                 dt_utc = datetime.fromisoformat(self._state)
-                cet = pytz.timezone('Europe/Budapest')
-                local_dt = dt_utc.astimezone(cet)
+                # Use Home Assistant's timezone utilities to avoid blocking calls
+                local_dt = dt_util.as_local(dt_utc)
                 return local_dt.strftime('%Y-%m-%d %H:%M')
             except Exception as e:
                 _LOGGER.warning(f"Failed to convert time for hourly sensor: {e}")

@@ -4,7 +4,7 @@ import io
 import pandas as pd
 import math
 from datetime import datetime
-import pytz
+from homeassistant.util import dt as dt_util
 from .const import DEFAULT_DISTANCE_KM
 
 URL_HOURLY = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/hourly/csv/HABP_1H_SYNOP_LATEST.csv.zip"
@@ -111,7 +111,7 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     numeric_columns.append("sr_mj")
 
     date_str = str(df["Time"].head(1).iloc[0])
-    dt_utc = datetime.strptime(date_str, '%Y%m%d%H%M').replace(tzinfo=pytz.UTC)
+    dt_utc = datetime.strptime(date_str, '%Y%m%d%H%M').replace(tzinfo=dt_util.UTC)
     station_info = df[["StationNumber", "StationName", "Latitude", "Longitude", "Elevation"]].drop_duplicates()
     station_info_list = station_info.to_dict(orient="records")
     we_value = None

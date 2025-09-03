@@ -5,12 +5,13 @@ from homeassistant.components.sensor import SensorEntity
 _LOGGER = logging.getLogger(__name__)
 
 class HungarometStationInfoSensor(SensorEntity):
-    def __init__(self, hass, name, station_info):
+    def __init__(self, hass, name, station_info, sensor_type="daily"):
         self.hass = hass
         self._name = name
         self._station_info = station_info
         self._device_id = "hungaromet_weather"
-        self._unique_id = f"{self._device_id}_station_info"
+        self._sensor_type = sensor_type
+        self._unique_id = f"{self._device_id}_station_info_{sensor_type}"
         self._added = False
 
     @property

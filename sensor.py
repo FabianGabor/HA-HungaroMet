@@ -100,7 +100,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 sensors.append(HungarometWeatherHourlySensor(hass, key, hourly_data[key], unit, key))
             elif key in ten_minutes_data:
                 sensors.append(HungarometWeatherTenMinutesSensor(hass, key, ten_minutes_data[key], unit, key))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info, "platform"))
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")
         return
@@ -166,7 +166,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 50 cm-es talajhőmérséklet", data["average_et50"], "°C", "et50"))
         sensors.append(HungarometWeatherDailySensor(hass, "Napi átlagos 100 cm-es talajhőmérséklet", data["average_et100"], "°C", "et100"))
         sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["average_tsn24"], "°C", "tsn24"))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info, "daily"))
 
         data, station_info = await hass.async_add_executor_job(process_hourly_data, hass, DEFAULT_DISTANCE_KM)
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás mérési időpont", data["time"], None, "time"))
@@ -189,7 +189,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás felszínközeli hőmérséklet minimuma", data["average_tsn"], "C", "tsn"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás pillanatnyi vízhőmérséklet", data["average_tviz"], "C", "tviz"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás pillanatnyi időkép kódja", data["we"], None, "we"))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info, "hourly"))
 
         data, station_info = await hass.async_add_executor_job(process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM)
         sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces mérési időpont", data["time"], None, "time"))
@@ -209,7 +209,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces átlagos szélirány", data["average_fsd"], "°", "fsd"))
         sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces felszínközeli hőmérséklet minimuma", data["average_tsn"], "C", "tsn"))
         sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces pillanatnyi vízhőmérséklet", data["average_tviz"], "C", "tviz"))
-        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info, "ten_minutes"))
 
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")

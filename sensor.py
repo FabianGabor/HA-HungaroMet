@@ -232,10 +232,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                     yesterday = (datetime.now().date() - timedelta(days=1))
                     if data_date != yesterday:
                         _LOGGER.warning(f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes.")
-                        hass.helpers.event.async_call_later(1800, lambda _: hass.async_create_task(check_and_reschedule()))
+                        hass.helpers.event.async_call_later(1800, lambda _: hass.add_job(check_and_reschedule))
                 except Exception as e:
                     _LOGGER.error(f"Failed to parse date from time sensor: {e}")
-        hass.async_create_task(check_and_reschedule())
+        hass.add_job(check_and_reschedule)
     async_track_time_change(hass, schedule_update, hour=9, minute=40, second=0)
 
     def schedule_hourly_update(now):
@@ -243,8 +243,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             for sensor in sensors:
                 if hasattr(sensor, '_key') and (sensor._key.startswith('oras_') or 'Órás' in sensor._name.lower()):
                     await sensor.async_update_data()
-            hass.helpers.event.async_call_later(3600, lambda _: hass.async_create_task(check_and_reschedule_hourly()))
-        hass.async_create_task(check_and_reschedule_hourly())
+            hass.helpers.event.async_call_later(3600, lambda _: hass.add_job(check_and_reschedule_hourly))
+        hass.add_job(check_and_reschedule_hourly)
     async_track_time_change(hass, schedule_hourly_update, minute=20, second=59)
 
     def schedule_ten_minutes_update(now):
@@ -253,6 +253,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                 # Update only ten minutes sensors by class type
                 if isinstance(sensor, HungarometWeatherTenMinutesSensor):
                     await sensor.async_update_data()
-            hass.helpers.event.async_call_later(600, lambda _: hass.async_create_task(check_and_reschedule_ten_minutes()))
-        hass.async_create_task(check_and_reschedule_ten_minutes())
+            hass.helpers.event.async_call_later(600, lambda _: hass.add_job(check_and_reschedule_ten_minutes))
+        hass.add_job(check_and_reschedule_ten_minutes)
     async_track_time_change(hass, schedule_ten_minutes_update, minute=range(0, 60, 10), second=59)

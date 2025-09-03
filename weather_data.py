@@ -12,11 +12,7 @@ try:
 except ImportError:
     from const import DEFAULT_DISTANCE_KM, URL_DAILY, URL_HOURLY, URL_TEN_MINUTES
 
-try:
-    ref_lat = hass.config.latitude
-    ref_lon = hass.config.longitude
-except NameError:
-    from local_config import ref_lat, ref_lon
+
 
 def fetch_data(url: str) -> pd.DataFrame:
     response = requests.get(url)
@@ -69,6 +65,12 @@ def process_daily_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
+
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
     df = df[df["Distance_km"] <= distance_km]
@@ -101,6 +103,12 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
         "f", "fd", "we", "et5", "et10", "et20", "et50", "et100", "tsn", "tviz"
     ]
     df = df[columns]
+
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
 
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
@@ -140,6 +148,12 @@ def process_ten_minutes_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
         "et5", "et10", "et20", "et50", "et100", "tsn", "tviz"
     ]
     df = df[columns]
+
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
 
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")

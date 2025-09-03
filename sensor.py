@@ -2,15 +2,15 @@
 Home Assistant custom component for HungaroMet weather sensors (daily, hourly, monthly).
 """
 import logging
-import voluptuous as vol
-from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
-from homeassistant.const import CONF_NAME
-from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.event import async_track_time_change
-from homeassistant.helpers import location
+from datetime import datetime, timedelta
+
 import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.typing import ConfigType
 import requests
 import zipfile
@@ -20,11 +20,16 @@ import math
 from datetime import time, timedelta, datetime
 from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
 
+from .const import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM, DEFAULT_NAME, DOMAIN
 from .daily_sensor import HungarometWeatherDailySensor
-from .station_info_sensor import HungarometStationInfoSensor
 from .hourly_sensor import HungarometWeatherHourlySensor
-from .weather_data import process_daily_data, process_hourly_data
-
+from .station_info_sensor import HungarometStationInfoSensor
+from .ten_minutes_sensor import HungarometWeatherTenMinutesSensor
+from .weather_data import (
+    process_daily_data,
+    process_hourly_data,
+    process_ten_minutes_data,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,8 +79,9 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     try:
         daily_data, station_info = await hass.async_add_executor_job(process_daily_data, hass, distance_km)
         hourly_data, _ = await hass.async_add_executor_job(process_hourly_data, hass)
-        # Kombinált szenzorok (azonos device alatt)
-        all_keys = set(list(daily_data.keys()) + list(hourly_data.keys()))
+        ten_minutes_data, _ = await hass.async_add_executor_job(process_ten_minutes_data, hass, distance_km)
+        
+        all_keys = set(list(daily_data.keys()) + list(hourly_data.keys()) + list(ten_minutes_data.keys()))
         for key in all_keys:
             unit = None
             if key in ["average_t", "average_tn", "average_tx", "average_et5", "average_et10", "average_et20", "average_et50", "average_et100", "average_tsn24", "average_ta", "average_tsn", "average_tviz"]:
@@ -100,6 +106,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 sensors.append(HungarometWeatherDailySensor(hass, key, daily_data[key], unit, key))
             elif key in hourly_data:
                 sensors.append(HungarometWeatherHourlySensor(hass, key, hourly_data[key], unit, key))
+            elif key in ten_minutes_data:
+                sensors.append(HungarometWeatherTenMinutesSensor(hass, key, ten_minutes_data[key], unit, key))
         sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")
@@ -113,35 +121,37 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     hass.services.async_register("hungaromet_weather", "update", handle_update_service)
 
     # Schedule daily update
-    def schedule_update(now):
-        async def check_and_reschedule():
-            # Update all sensors
-            for sensor in sensors:
-                await sensor.async_update_data()
-            # Find the 'Mérési időpont' sensor
-            time_sensor = next((s for s in sensors if getattr(s, '_key', None) == 'time'), None)
-            if time_sensor and time_sensor.state:
-                try:
-                    data_date = datetime.strptime(time_sensor.state, '%Y-%m-%d').date()
-                    yesterday = (datetime.now().date() - timedelta(days=1))
-                    if data_date != yesterday:
-                        _LOGGER.warning(f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes.")
-                        hass.helpers.event.async_call_later(1800, lambda _: hass.async_create_task(check_and_reschedule()))
-                except Exception as e:
-                    _LOGGER.error(f"Failed to parse date from time sensor: {e}")
-        hass.async_create_task(check_and_reschedule())
-    async_track_time_change(hass, schedule_update, hour=9, minute=40, second=0)
+    async def check_and_reschedule_daily(now):
+        for sensor in sensors:
+            await sensor.async_update_data()
+        time_sensor = next((s for s in sensors if getattr(s, '_key', None) == 'time'), None)
+        if time_sensor and time_sensor.state:
+            try:
+                data_date = datetime.strptime(time_sensor.state, '%Y-%m-%d').date()
+                yesterday = (datetime.now().date() - timedelta(days=1))
+                if data_date != yesterday:
+                    _LOGGER.warning(f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes.")
+                    # Schedule a one-off retry using async_call_later
+                    async def retry_daily(_):
+                        await check_and_reschedule_daily(None)
+                    hass.helpers.event.async_call_later(1800, retry_daily)
+            except Exception as e:
+                _LOGGER.error(f"Failed to parse date from time sensor: {e}")
+    async_track_time_change(hass, check_and_reschedule_daily, hour=9, minute=40, second=0)
 
     # Schedule hourly update
-    def schedule_hourly_update(now):
-        async def check_and_reschedule_hourly():
-            for sensor in sensors:
-                # Frissítsük csak az órás szenzorokat (kulcs alapján)
-                if hasattr(sensor, '_key') and (sensor._key.startswith('oras_') or 'Órás' in sensor._name.lower()):
-                    await sensor.async_update_data()
-            hass.helpers.event.async_call_later(3600, lambda _: hass.async_create_task(check_and_reschedule_hourly()))
-        hass.async_create_task(check_and_reschedule_hourly())
-    async_track_time_change(hass, schedule_hourly_update, minute=25, second=0)
+    async def check_and_reschedule_hourly(now):
+        for sensor in sensors:
+            if hasattr(sensor, '_key') and (sensor._key.startswith('oras_') or 'Órás' in sensor._name.lower()):
+                await sensor.async_update_data()
+    async_track_time_change(hass, check_and_reschedule_hourly, minute=20, second=59)
+
+    # Schedule ten minutes update
+    async def check_and_reschedule_ten_minutes(now):
+        for sensor in sensors:
+            if isinstance(sensor, HungarometWeatherTenMinutesSensor):
+                await sensor.async_update_data()
+    async_track_time_change(hass, check_and_reschedule_ten_minutes, minute=range(0, 60, 10), second=59)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities):
@@ -166,7 +176,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors.append(HungarometWeatherDailySensor(hass, "Felszínközeli hőmérséklet napi minimuma", data["average_tsn24"], "°C", "tsn24"))
         sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
 
-        data, _ = await hass.async_add_executor_job(process_hourly_data, hass, DEFAULT_DISTANCE_KM)
+        data, station_info = await hass.async_add_executor_job(process_hourly_data, hass, DEFAULT_DISTANCE_KM)
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás mérési időpont", data["time"], None, "time"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás csapadékösszeg", data["average_r"], "mm", "r"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás pillanatnyi hőmérséklet", data["average_t"], "°C", "t"))
@@ -182,11 +192,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás szinoptikus szélirány", data["average_fsd"], "°", "fsd"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás maximális széllökés sebessége", data["average_fx"], "m/s", "fx"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás maximális széllökés iránya", data["average_fxd"], "°", "fxd"))
-        sensors.append(HungarometWeatherHourlySensor(hass, "Órás átlagos szélsebesség", data["average_f"], "m/s", "fxd"))
+        sensors.append(HungarometWeatherHourlySensor(hass, "Órás átlagos szélsebesség", data["average_f"], "m/s", "f"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás átlagos szélirány", data["average_fd"], "°", "fd"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás felszínközeli hőmérséklet minimuma", data["average_tsn"], "C", "tsn"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás pillanatnyi vízhőmérséklet", data["average_tviz"], "C", "tviz"))
         sensors.append(HungarometWeatherHourlySensor(hass, "Órás pillanatnyi időkép kódja", data["we"], None, "we"))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+
+        data, station_info = await hass.async_add_executor_job(process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM)
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces mérési időpont", data["time"], None, "time"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces csapadékösszeg", data["average_r"], "mm", "r"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces pillanatnyi hőmérséklet", data["average_t"], "°C", "t"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces átlaghőmérséklet", data["average_ta"], "°C", "ta"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces minimumhőmérséklet", data["average_tn"], "°C", "tn"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces maximumhőmérséklet", data["average_tx"], "°C", "tx"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces pillanatnyi relatív nedvesség", data["average_u"], "%", "u"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces átlagos gammadózis", data["average_sg"], "nSv/h", "sg"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces globálsugárzás összeg", data["average_sr"], "J/cm²", "sr"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces globálsugárzás összeg (MJ/m²)", data["average_sr_mj"], "MJ/m²", "sr_mj"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces UV sugárzás összeg", data["average_suv"], "MED", "suv"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces maximális széllökés sebessége", data["average_fx"], "m/s", "fx"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces maximális széllökés iránya", data["average_fxd"], "°", "fxd"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces átlagos szélsebesség", data["average_fs"], "m/s", "fs"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces átlagos szélirány", data["average_fsd"], "°", "fsd"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces felszínközeli hőmérséklet minimuma", data["average_tsn"], "C", "tsn"))
+        sensors.append(HungarometWeatherTenMinutesSensor(hass, "Tízperces pillanatnyi vízhőmérséklet", data["average_tviz"], "C", "tviz"))
+        sensors.append(HungarometStationInfoSensor(hass, "HungaroMet Állomások", station_info))
+
     except Exception as e:
         _LOGGER.error(f"Failed to fetch/process weather data: {e}")
         return
@@ -199,7 +231,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
     def schedule_update(now):
         async def check_and_reschedule():
-            # Update all sensors
             for sensor in sensors:
                 await sensor.async_update_data()            
             time_sensor = next((s for s in sensors if getattr(s, '_key', None) == 'time'), None)
@@ -209,10 +240,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
                     yesterday = (datetime.now().date() - timedelta(days=1))
                     if data_date != yesterday:
                         _LOGGER.warning(f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes.")
-                        hass.helpers.event.async_call_later(1800, lambda _: hass.async_create_task(check_and_reschedule()))
+                        hass.helpers.event.async_call_later(1800, lambda _: hass.add_job(check_and_reschedule))
                 except Exception as e:
                     _LOGGER.error(f"Failed to parse date from time sensor: {e}")
-        hass.async_create_task(check_and_reschedule())
+        hass.add_job(check_and_reschedule)
     async_track_time_change(hass, schedule_update, hour=9, minute=40, second=0)
 
     def schedule_hourly_update(now):
@@ -220,6 +251,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             for sensor in sensors:
                 if hasattr(sensor, '_key') and (sensor._key.startswith('oras_') or 'Órás' in sensor._name.lower()):
                     await sensor.async_update_data()
-            hass.helpers.event.async_call_later(3600, lambda _: hass.async_create_task(check_and_reschedule_hourly()))
-        hass.async_create_task(check_and_reschedule_hourly())
-    async_track_time_change(hass, schedule_hourly_update, minute=25, second=0)
+            hass.helpers.event.async_call_later(3600, lambda _: hass.add_job(check_and_reschedule_hourly))
+        hass.add_job(check_and_reschedule_hourly)
+    async_track_time_change(hass, schedule_hourly_update, minute=20, second=59)
+
+    def schedule_ten_minutes_update(now):
+        async def check_and_reschedule_ten_minutes():
+            for sensor in sensors:
+                # Update only ten minutes sensors by class type
+                if isinstance(sensor, HungarometWeatherTenMinutesSensor):
+                    await sensor.async_update_data()
+            hass.helpers.event.async_call_later(600, lambda _: hass.add_job(check_and_reschedule_ten_minutes))
+        hass.add_job(check_and_reschedule_ten_minutes)
+    async_track_time_change(hass, schedule_ten_minutes_update, minute=range(0, 60, 10), second=59)

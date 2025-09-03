@@ -1,6 +1,8 @@
 import voluptuous as vol
 from homeassistant import config_entries
+
 from .sensor import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
+
 
 class HungaroMetOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):

@@ -11,6 +11,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.typing import ConfigType
+import requests
+import zipfile
+import io
+import pandas as pd
+import math
+from datetime import time, timedelta, datetime
+from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
 
 from .const import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM, DEFAULT_NAME, DOMAIN
 from .daily_sensor import HungarometWeatherDailySensor

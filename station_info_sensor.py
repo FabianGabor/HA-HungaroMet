@@ -1,6 +1,6 @@
-from homeassistant.components.sensor import SensorEntity
 import logging
-from .const import DOMAIN
+
+from homeassistant.components.sensor import SensorEntity
 
 _LOGGER = logging.getLogger(__name__)
 

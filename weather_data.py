@@ -1,14 +1,20 @@
-import requests
-import zipfile
 import io
-import pandas as pd
 import math
+import zipfile
 from datetime import datetime
+
+import pandas as pd
 import pytz
+import requests
+
+try:
+    from .const import DEFAULT_DISTANCE_KM, URL_DAILY, URL_HOURLY, URL_TEN_MINUTES
+except ImportError:
+    from const import DEFAULT_DISTANCE_KM, URL_DAILY, URL_HOURLY, URL_TEN_MINUTES
+
+from homeassistant.util import dt as dt_util
 from .const import DEFAULT_DISTANCE_KM
 
-URL_HOURLY = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/hourly/csv/HABP_1H_SYNOP_LATEST.csv.zip"
-URL_DAILY = "https://odp.met.hu/weather/weather_reports/synoptic/hungary/daily/csv/HABP_1D_LATEST.csv.zip"
 
 def fetch_data(url: str) -> pd.DataFrame:
     response = requests.get(url)
@@ -61,8 +67,12 @@ def process_daily_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
-    ref_lat = hass.config.latitude if hass else 48.029135051516135
-    ref_lon = hass.config.longitude if hass else 21.762293279170994
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
+
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
     df = df[df["Distance_km"] <= distance_km]
@@ -96,8 +106,12 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
-    ref_lat = hass.config.latitude if hass else 48.029135051516135
-    ref_lon = hass.config.longitude if hass else 21.762293279170994
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
+
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
     df = df[df["Distance_km"] <= distance_km]
@@ -111,7 +125,7 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     numeric_columns.append("sr_mj")
 
     date_str = str(df["Time"].head(1).iloc[0])
-    dt_utc = datetime.strptime(date_str, '%Y%m%d%H%M').replace(tzinfo=pytz.UTC)
+    dt_utc = datetime.strptime(date_str, '%Y%m%d%H%M').replace(tzinfo=dt_util.UTC)
     station_info = df[["StationNumber", "StationName", "Latitude", "Longitude", "Elevation"]].drop_duplicates()
     station_info_list = station_info.to_dict(orient="records")
     we_value = None
@@ -127,12 +141,57 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     return result, station_info_list
 
 
-if __name__ == "__main__":
-    # Example usage
-    daily_data, daily_stations = process_daily_data()
-    print("Daily Data:", daily_data)
-    print("Daily Stations:", daily_stations)
+def process_ten_minutes_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
+    df = fetch_data(URL_TEN_MINUTES)
+    df = clean_data(df)
+    columns = [
+        "Time", "StationNumber", "StationName", "Latitude", "Longitude", "Elevation",
+        "r", "t", "ta", "tn", "tx", "u", "sg", "sr", "suv", "fs", "fsd", "fx", "fxd",
+        "et5", "et10", "et20", "et50", "et100", "tsn", "tviz"
+    ]
+    df = df[columns]
 
-    hourly_data, hourly_stations = process_hourly_data()
-    print("Hourly Data:", hourly_data)
-    print("Hourly Stations:", hourly_stations)
+    try:
+        ref_lat = hass.config.latitude
+        ref_lon = hass.config.longitude
+    except NameError:
+        from local_config import ref_lat, ref_lon
+
+    df = add_distance_column(df, ref_lat, ref_lon)
+    df = df.sort_values(by="Distance_km")
+    df = df[df["Distance_km"] <= distance_km]
+
+    numeric_columns = [
+        "Latitude", "Longitude", "Elevation", "r", "t", "ta", "tn", "tx", "u", "sg", "sr", "suv", "fs", "fsd", "fx", "fxd",
+        "et5", "et10", "et20", "et50", "et100", "tsn", "tviz"
+    ]
+    means = calculate_mean_values(df, numeric_columns)
+    means["sr_mj"] = means["sr"] * 0.01 if means["sr"] is not None else None
+    numeric_columns.append("sr_mj")
+
+    date_str = str(df["Time"].head(1).iloc[0])
+    dt_utc = datetime.strptime(date_str, '%Y%m%d%H%M').replace(tzinfo=pytz.UTC)
+    station_info = df[["StationNumber", "StationName", "Latitude", "Longitude", "Elevation"]].drop_duplicates()
+    station_info_list = station_info.to_dict(orient="records")
+    
+    result = {
+        "time": dt_utc.isoformat(),
+        **{f"average_{col}": means[col] for col in numeric_columns}
+    }
+    return result, station_info_list
+
+
+if __name__ == "__main__":
+    # daily_data, daily_stations = process_daily_data()
+    # print("Daily Data:", daily_data)
+    # print("Daily Stations:", daily_stations)
+
+    # hourly_data, hourly_stations = process_hourly_data()
+    # print("Hourly Data:", hourly_data)
+    # print("Hourly Stations:", hourly_stations)
+
+    ten_minutes_data, ten_minutes_stations = process_ten_minutes_data()
+    for key, value in ten_minutes_data.items():
+        print(f"{key}: {value}")
+    print(f"10 perces szélsebesség: {ten_minutes_data.get('average_fs')}")
+    # print("10 Minutes Stations:", ten_minutes_stations)

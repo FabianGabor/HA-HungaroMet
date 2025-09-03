@@ -1,0 +1,113 @@
+{
+    "name": "Python DevContainer",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "configureZshAsDefaultShell": false,
+            "installOhMyZsh": true,
+            "installOhMyZshConfig": true,
+            "username": "developer",
+            "userUid": 1000,
+            "userGid": 1000
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "vscode": {
+            // Set *default* container specific settings.json values on container create.
+            "settings": {
+                "telemetry.telemetryLevel": "off",
+                "remote.downloadExtensionsLocally": true,
+                "remote.autoForwardPortsSource": "hybrid",
+                "editor.experimentalEditContextEnabled": false,
+                "editor.formatOnPaste": false,
+                "editor.formatOnSave": true,
+                "diffEditor.hideUnchangedRegions.enabled": true,
+                "diffEditor.renderSideBySide": false,
+                "diffEditor.codeLens": true,
+                "explorer.excludeGitIgnore": true,
+                "files.eol": "\n",
+                "files.autoSave": "afterDelay",
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "diffEditor.ignoreTrimWhitespace": false
+                },
+                "[json]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode"
+                },
+                "[yaml]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode"
+                },
+                "[toml]": {
+                    "editor.defaultFormatter": "tamasfe.even-better-toml"
+                },
+                "terminal.integrated.sendKeybindingsToShell": true,
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.profiles.linux": {
+                    "bash": {
+                        "path": "/bin/bash",
+                        "icon": "terminal-bash",
+                        "args": ["-l"]
+                    },
+                    "zsh": {
+                        "path": "/bin/zsh",
+                        "icon": "terminal-bash",
+                        "args": ["-l"]
+                    }
+                },
+                "python.terminal.activateEnvironment": false,
+                "ruff.configurationPreference": "filesystemFirst",
+                "ruff.format.preview": true,
+                "ruff.lint.preview": true,
+                "mypy-type-checker.importStrategy": "fromEnvironment",
+                "mypy-type-checker.args": [
+                    "--install-types",
+                    "--non-interactive"
+                ],
+                "pylint.importStrategy": "fromEnvironment",
+                "pylint.args": [
+                    "--max-attributes=10",
+                    "--load-plugins pylint_pytest"
+                ],
+                "extensions.verifySignature": false,
+                "python.REPL.sendToNativeREPL": false,
+                "python.REPL.enableREPLSmartSend": false,
+                "jupyter.interactiveWindow.textEditor.executeSelection": true,
+                "python.testing.pytestEnabled": true,
+                "python.testing.cwd": "./test",
+                "python.analysis.typeCheckingMode": "strict",
+                "python.analysis.supportDocstringTemplate": true,
+                "python.analysis.typeEvaluation.deprecateTypingAliases": true,
+                "python.analysis.typeEvaluation.enableReachabilityAnalysis": true,
+                "python.analysis.autoImportCompletions": true,
+                "python.analysis.showOnlyDirectDependenciesInAutoImport": true,
+                "python.analysis.cacheLSPData": true,
+                "python.analysis.languageServerMode": "full",
+                "python.analysis.enablePerfTelemetry": false
+            },
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-python.mypy-type-checker",
+                "ms-python.pylint",
+                "esbenp.prettier-vscode",
+                "dbaeumer.vscode-eslint",
+                "charliermarsh.ruff",
+                "elagil.pre-commit-helper",
+                "ms-azuretools.vscode-docker",
+                "tamasfe.even-better-toml",
+                "redhat.vscode-yaml",
+                "DavidAnson.vscode-markdownlint",
+                "mechatroner.rainbow-csv",
+                "eamodio.gitlens",
+                "njpwerner.autodocstring",
+                "docker.docker",
+                "ms-azuretools.vscode-containers",
+                "ms-python.vscode-python-envs"
+            ]
+        }
+    },
+    "postCreateCommand": "pip install -r requirements.txt",
+    "workspaceFolder": "/workspaces/hungaromet"
+}

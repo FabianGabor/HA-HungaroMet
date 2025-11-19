@@ -7,14 +7,11 @@
             "configureZshAsDefaultShell": false,
             "installOhMyZsh": true,
             "installOhMyZshConfig": true,
-            "username": "developer",
-            "userUid": 1000,
-            "userGid": 1000
+            "username": "automatic"
         }
     },
     "customizations": {
         "vscode": {
-            "vscode": {
             // Set *default* container specific settings.json values on container create.
             "settings": {
                 "telemetry.telemetryLevel": "off",
@@ -108,6 +105,5 @@
             ]
         }
     },
-    "postCreateCommand": "pip install -r requirements.txt",
-    "workspaceFolder": "/workspaces/hungaromet"
+    "postCreateCommand": "pip install -r requirements.txt"
 }

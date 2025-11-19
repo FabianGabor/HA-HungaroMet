@@ -61,8 +61,10 @@ class HungarometWeatherDailySensor(SensorEntity):
     async def async_update_data(self):
         if not self._added:
             return
+        from .const import DEFAULT_DISTANCE_KM
+
         data, stations = await self.hass.async_add_executor_job(
-            process_daily_data, self.hass
+            process_daily_data, self.hass, DEFAULT_DISTANCE_KM
         )
         value = data.get(self._key)
         if value is None:

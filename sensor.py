@@ -165,6 +165,41 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     hass.services.async_register("hungaromet_weather", "update", handle_update_service)
 
+    # Optimized scheduled updates - fetch once, update all sensors
+    async def update_sensors_by_type(data_type: str):
+        """Fetch data once and update all matching sensors."""
+        try:
+            # Fetch data once
+            if data_type == "hourly":
+                data, _ = await hass.async_add_executor_job(
+                    process_hourly_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "ten_minutes":
+                data, _ = await hass.async_add_executor_job(
+                    process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM
+                )
+            else:
+                return
+
+            # Update all matching sensors with the fetched data
+            for sensor in sensors:
+                if data_type == "hourly" and isinstance(
+                    sensor, HungarometWeatherHourlySensor
+                ):
+                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                    if value is not None:
+                        sensor._state = value
+                        sensor.async_write_ha_state()
+                elif data_type == "ten_minutes" and isinstance(
+                    sensor, HungarometWeatherTenMinutesSensor
+                ):
+                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                    if value is not None:
+                        sensor._state = value
+                        sensor.async_write_ha_state()
+        except Exception as e:
+            _LOGGER.error(f"Error updating {data_type} sensors: {e}")
+
     # Schedule daily update
     async def check_and_reschedule_daily(now):
         for sensor in sensors:
@@ -193,21 +228,15 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
         hass, check_and_reschedule_daily, hour=9, minute=40, second=0
     )
 
-    # Schedule hourly update
+    # Schedule hourly update - optimized to fetch once
     async def check_and_reschedule_hourly(now):
-        for sensor in sensors:
-            if hasattr(sensor, "_key") and (
-                sensor._key.startswith("oras_") or "Órás" in sensor._name.lower()
-            ):
-                await sensor.async_update_data()
+        await update_sensors_by_type("hourly")
 
     async_track_time_change(hass, check_and_reschedule_hourly, minute=20, second=59)
 
-    # Schedule ten minutes update
+    # Schedule ten minutes update - optimized to fetch once
     async def check_and_reschedule_ten_minutes(now):
-        for sensor in sensors:
-            if isinstance(sensor, HungarometWeatherTenMinutesSensor):
-                await sensor.async_update_data()
+        await update_sensors_by_type("ten_minutes")
 
     async_track_time_change(
         hass, check_and_reschedule_ten_minutes, minute=range(0, 60, 10), second=59

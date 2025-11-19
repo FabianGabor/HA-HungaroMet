@@ -32,6 +32,7 @@ class HungarometWeatherHourlySensor(SensorEntity):
                 dt_utc = datetime.fromisoformat(self._state)
                 # Use Home Assistant's timezone utilities to avoid blocking calls
                 local_dt = dt_util.as_local(dt_utc)
+                return local_dt.strftime("%Y-%m-%d %H:%M")
             except Exception as e:
                 _LOGGER.warning(f"Failed to convert time for hourly sensor: {e}")
                 return self._state
@@ -66,7 +67,11 @@ class HungarometWeatherHourlySensor(SensorEntity):
     async def async_update_data(self):
         if not self._added:
             return
-        data, _ = await self.hass.async_add_executor_job(process_hourly_data, self.hass)
+        from .const import DEFAULT_DISTANCE_KM
+
+        data, _ = await self.hass.async_add_executor_job(
+            process_hourly_data, self.hass, DEFAULT_DISTANCE_KM
+        )
         # Try both the raw key and the 'average_' + key
         value = data.get(self._key)
         if value is None:

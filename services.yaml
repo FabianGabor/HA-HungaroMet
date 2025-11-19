@@ -1,0 +1,6 @@
+# Services for HungaroMet Weather Integration
+
+update:
+  name: Update sensors
+  description: Manually trigger an update of all HungaroMet weather sensors.
+  fields: {}

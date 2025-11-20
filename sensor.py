@@ -202,8 +202,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 
     # Schedule daily update
     async def check_and_reschedule_daily(now):
-        for sensor in sensors:
-            await sensor.async_update_data()
+        await update_sensors_by_type("daily")
         time_sensor = next(
             (s for s in sensors if getattr(s, "_key", None) == "time"), None
         )
@@ -623,10 +622,55 @@ async def async_setup_entry(
 
     hass.services.async_register(DOMAIN, "update", handle_update_service)
 
+    # Optimized scheduled updates - fetch once, update all sensors
+    async def update_sensors_by_type(data_type: str):
+        """Fetch data once and update all matching sensors."""
+        try:
+            # Fetch data once
+            if data_type == "hourly":
+                data, _ = await hass.async_add_executor_job(
+                    process_hourly_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "ten_minutes":
+                data, _ = await hass.async_add_executor_job(
+                    process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "daily":
+                data, _ = await hass.async_add_executor_job(
+                    process_daily_data, hass, DEFAULT_DISTANCE_KM
+                )
+            else:
+                return
+
+            # Update all matching sensors with the fetched data
+            for sensor in sensors:
+                if data_type == "hourly" and isinstance(
+                    sensor, HungarometWeatherHourlySensor
+                ):
+                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                    if value is not None:
+                        sensor._state = value
+                        sensor.async_write_ha_state()
+                elif data_type == "ten_minutes" and isinstance(
+                    sensor, HungarometWeatherTenMinutesSensor
+                ):
+                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                    if value is not None:
+                        sensor._state = value
+                        sensor.async_write_ha_state()
+                elif data_type == "daily" and isinstance(
+                    sensor, HungarometWeatherDailySensor
+                ):
+                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                    if value is not None:
+                        sensor._state = value
+                        sensor.async_write_ha_state()
+        except Exception as e:
+            _LOGGER.error(f"Error updating {data_type} sensors: {e}")
+
     def schedule_update(now):
         async def check_and_reschedule():
-            for sensor in sensors:
-                await sensor.async_update_data()
+            await update_sensors_by_type("daily")
             time_sensor = next(
                 (s for s in sensors if getattr(s, "_key", None) == "time"), None
             )
@@ -650,11 +694,7 @@ async def async_setup_entry(
 
     def schedule_hourly_update(now):
         async def check_and_reschedule_hourly():
-            for sensor in sensors:
-                if hasattr(sensor, "_key") and (
-                    sensor._key.startswith("oras_") or "Órás" in sensor._name.lower()
-                ):
-                    await sensor.async_update_data()
+            await update_sensors_by_type("hourly")
 
         hass.add_job(check_and_reschedule_hourly)
 
@@ -662,10 +702,7 @@ async def async_setup_entry(
 
     def schedule_ten_minutes_update(now):
         async def check_and_reschedule_ten_minutes():
-            for sensor in sensors:
-                # Update only ten minutes sensors by class type
-                if isinstance(sensor, HungarometWeatherTenMinutesSensor):
-                    await sensor.async_update_data()
+            await update_sensors_by_type("ten_minutes")
 
         hass.add_job(check_and_reschedule_ten_minutes)
 

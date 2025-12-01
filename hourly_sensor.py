@@ -2,11 +2,10 @@ import logging
 from datetime import datetime
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-
-from .weather_data import process_hourly_data
 from homeassistant.util import dt as dt_util
-from .const import DOMAIN, DEFAULT_DISTANCE_KM
+
+from .const import DEFAULT_DISTANCE_KM
+from .weather_data import process_hourly_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class HungarometWeatherHourlySensor(SensorEntity):
                 local_dt = dt_util.as_local(dt_utc)
                 return local_dt.strftime("%Y-%m-%d %H:%M")
             except Exception as e:
-                _LOGGER.warning(f"Failed to convert time for hourly sensor: {e}")
+                _LOGGER.warning("Failed to convert time for hourly sensor: %s", e)
                 return self._state
         if isinstance(self._state, (int, float)):
             return round(self._state, 2)
@@ -63,13 +62,16 @@ class HungarometWeatherHourlySensor(SensorEntity):
     async def async_added_to_hass(self):
         self._added = True
         _LOGGER.debug(
-            f"Entity {self._name} added to hass with unique_id {self._unique_id}"
+            "Entity %s added to hass with unique_id %s",
+            self._name,
+            self._unique_id,
         )
 
     async def async_will_remove_from_hass(self):
         self._added = False
         _LOGGER.debug(
-            f"Entity {self._name} removed from hass; skipping scheduled updates"
+            "Entity %s removed from hass; skipping scheduled updates",
+            self._name,
         )
 
     async def async_update_data(self):

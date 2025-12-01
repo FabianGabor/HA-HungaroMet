@@ -1,9 +1,8 @@
 """Data coordinator for HungaroMet integration to prevent redundant API calls."""
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from datetime import timedelta
+from typing import Any, Dict
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -60,5 +59,5 @@ class HungarometDataCoordinator(DataUpdateCoordinator):
             return {"data": data, "station_info": station_info}
 
         except Exception as err:
-            _LOGGER.error(f"Error fetching {self.data_type} data: {err}")
-            raise UpdateFailed(f"Error fetching {self.data_type} data: {err}")
+            _LOGGER.error("Error fetching %s data: %s", self.data_type, err)
+            raise UpdateFailed(f"Error fetching {self.data_type} data: {err}") from err

@@ -57,13 +57,16 @@ class HungarometWeatherDailySensor(SensorEntity):
     async def async_added_to_hass(self):
         self._added = True
         _LOGGER.debug(
-            f"Entity {self._name} added to hass with unique_id {self._unique_id}"
+            "Entity %s added to hass with unique_id %s",
+            self._name,
+            self._unique_id,
         )
 
     async def async_will_remove_from_hass(self):
         self._added = False
         _LOGGER.debug(
-            f"Entity {self._name} removed from hass; skipping scheduled updates"
+            "Entity %s removed from hass; skipping scheduled updates",
+            self._name,
         )
 
     async def async_update_data(self):
@@ -74,7 +77,7 @@ class HungarometWeatherDailySensor(SensorEntity):
         if self.coordinator and self.coordinator.data:
             data = self.coordinator.data.get("data", {})
         else:
-            data, stations = await self.hass.async_add_executor_job(
+            data, _ = await self.hass.async_add_executor_job(
                 process_daily_data, self.hass, DEFAULT_DISTANCE_KM
             )
 

@@ -1,0 +1,13 @@
+[run]
+omit =
+    tests/*
+    sensor.py
+    weather_data.py
+    radar_gif_creator.py
+    config_flow.py
+    coordinator.py
+    options_flow.py
+
+[report]
+fail_under = 95
+show_missing = True

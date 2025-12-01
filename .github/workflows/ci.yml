@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev"]
+  pull_request:
+    branches: ["main", "dev"]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run pylint
+        run: |
+          pylint \
+            daily_sensor.py \
+            hourly_sensor.py \
+            ten_minutes_sensor.py \
+            station_info_sensor.py \
+            radar_gif_image.py \
+            radar_gif_creator.py \
+            sensor.py \
+            weather_data.py \
+            image.py \
+            config_flow.py \
+            options_flow.py \
+            __init__.py \
+            coordinator.py
+
+      - name: Run pytest with coverage
+        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=95
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true

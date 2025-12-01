@@ -1,4 +1,5 @@
 import io
+import logging
 import math
 import zipfile
 from datetime import datetime
@@ -7,16 +8,52 @@ import pandas as pd
 import requests
 
 try:
-    from .const import DEFAULT_DISTANCE_KM, URL_DAILY, URL_HOURLY, URL_TEN_MINUTES
+    from .const import (
+        DEFAULT_DISTANCE_KM,
+        URL_DAILY,
+        URL_HOURLY,
+        URL_TEN_MINUTES,
+    )
 except ImportError:
-    from const import DEFAULT_DISTANCE_KM, URL_DAILY, URL_HOURLY, URL_TEN_MINUTES
+    from const import (
+        DEFAULT_DISTANCE_KM,
+        URL_DAILY,
+        URL_HOURLY,
+        URL_TEN_MINUTES,
+    )
+
+try:  # Optional local fallback for CLI usage
+    from . import local_config as _local_config  # type: ignore
+except ImportError:  # pragma: no cover - optional helper
+    try:
+        import local_config as _local_config  # type: ignore
+    except ImportError:  # pragma: no cover - optional helper
+        _local_config = None
 
 from homeassistant.util import dt as dt_util
-from .const import DEFAULT_DISTANCE_KM
+
+_LOGGER = logging.getLogger(__name__)
+REQUEST_TIMEOUT = 15
+
+
+def _get_reference_coords(hass):
+    if hass is not None and getattr(hass, "config", None) is not None:
+        return hass.config.latitude, hass.config.longitude
+    if _local_config is not None:
+        return _local_config.ref_lat, _local_config.ref_lon
+    _LOGGER.error(
+        "Reference coordinates are unavailable. Provide Home Assistant config "
+        "or local_config module."
+    )
+    raise ValueError(
+        "Reference coordinates are unavailable. Provide Home Assistant config "
+        "or local_config module."
+    )
 
 
 def fetch_data(url: str) -> pd.DataFrame:
-    response = requests.get(url)
+    response = requests.get(url, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         csv_filename = z.namelist()[0]
         with z.open(csv_filename) as csvfile:
@@ -91,11 +128,7 @@ def process_daily_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
-    try:
-        ref_lat = hass.config.latitude
-        ref_lon = hass.config.longitude
-    except NameError:
-        from local_config import ref_lat, ref_lon
+    ref_lat, ref_lon = _get_reference_coords(hass)
 
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
@@ -176,11 +209,7 @@ def process_hourly_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
-    try:
-        ref_lat = hass.config.latitude
-        ref_lon = hass.config.longitude
-    except NameError:
-        from local_config import ref_lat, ref_lon
+    ref_lat, ref_lon = _get_reference_coords(hass)
 
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")
@@ -270,11 +299,7 @@ def process_ten_minutes_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     ]
     df = df[columns]
 
-    try:
-        ref_lat = hass.config.latitude
-        ref_lon = hass.config.longitude
-    except NameError:
-        from local_config import ref_lat, ref_lon
+    ref_lat, ref_lon = _get_reference_coords(hass)
 
     df = add_distance_column(df, ref_lat, ref_lon)
     df = df.sort_values(by="Distance_km")

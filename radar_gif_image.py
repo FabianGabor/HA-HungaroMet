@@ -18,7 +18,8 @@ class HungarometRadarImage(ImageEntity):
         self.hass = hass
         self._name = name
         self._device_id = "hungaromet_radar_gif"
-        self._unique_id = f"{self._device_id}_{self._name.lower().replace(' ', '_')}"
+        normalized_name = self._name.lower().replace(" ", "_")
+        self._unique_id = f"{self._device_id}_{normalized_name}"
         self._added = False
         self._gif_path = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "www", "radar_animation.gif"
@@ -32,7 +33,9 @@ class HungarometRadarImage(ImageEntity):
         else:
             self._last_updated = None
             _LOGGER.warning(
-                f"Radar GIF file not found at {self._gif_path}. The image entity will be unavailable until the file is created."
+                "Radar GIF file not found at %s. The image entity will be unavailable "
+                "until the file is created.",
+                self._gif_path,
             )
 
     @property
@@ -66,7 +69,9 @@ class HungarometRadarImage(ImageEntity):
     async def async_added_to_hass(self):
         self._added = True
         _LOGGER.debug(
-            f"Image entity {self._name} added to hass with unique_id {self._unique_id}"
+            "Image entity %s added to hass with unique_id %s",
+            self._name,
+            self._unique_id,
         )
         if self._unsub_update is None:
             self._unsub_update = async_track_time_change(
@@ -103,14 +108,26 @@ class HungarometRadarImage(ImageEntity):
     async def async_image(self):
         if not os.path.exists(self._gif_path):
             _LOGGER.warning(
-                f"Radar GIF file not found at {self._gif_path}. Returning None."
+                "Radar GIF file not found at %s. Returning None.",
+                self._gif_path,
             )
             return None
         try:
             with open(self._gif_path, "rb") as f:
                 return f.read()
-        except Exception as e:
-            _LOGGER.error(f"Failed to read radar GIF: {e}")
+        except OSError as err:
+            _LOGGER.error("Failed to read radar GIF: %s", err)
+            return None
+
+    def image(self):
+        """Return the most recent radar image bytes synchronously."""
+        if not os.path.exists(self._gif_path):
+            return None
+        try:
+            with open(self._gif_path, "rb") as gif_file:
+                return gif_file.read()
+        except OSError as err:
+            _LOGGER.error("Failed to read radar GIF synchronously: %s", err)
             return None
 
     @property

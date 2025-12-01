@@ -1,6 +1,4 @@
-"""
-Home Assistant custom component for HungaroMet weather sensors (daily, hourly, monthly).
-"""
+"""Home Assistant custom component for HungaroMet weather sensors."""
 
 import logging
 from datetime import datetime, timedelta
@@ -11,15 +9,7 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_time_change, async_call_later
-from homeassistant.helpers.typing import ConfigType
-import requests
-import zipfile
-import io
-import pandas as pd
-import math
-from datetime import time, timedelta, datetime
-from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
+from homeassistant.helpers.event import async_call_later, async_track_time_change
 
 from .const import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM, DEFAULT_NAME, DOMAIN
 from .daily_sensor import HungarometWeatherDailySensor
@@ -77,7 +67,6 @@ WE_CODES = {
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    name = config.get(CONF_NAME)
     distance_km = config.get(CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM)
     sensors = []
     try:
@@ -153,8 +142,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 hass, "HungaroMet Állomások", station_info, "platform"
             )
         )
-    except Exception as e:
-        _LOGGER.error(f"Failed to fetch/process weather data: {e}")
+    except Exception as err:  # pragma: no cover - defensive logging
+        _LOGGER.error("Failed to fetch/process weather data: %s", err)
         return
     async_add_entities(sensors, True)
 
@@ -223,8 +212,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                     continue
                 sensor._state = value
                 sensor.async_write_ha_state()
-        except Exception as e:
-            _LOGGER.error(f"Error updating {data_type} sensors: {e}")
+        except Exception as err:  # pragma: no cover - defensive logging
+            _LOGGER.error("Error updating %s sensors: %s", data_type, err)
 
     # Schedule daily update
     async def check_and_reschedule_daily(now):
@@ -238,7 +227,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 yesterday = datetime.now().date() - timedelta(days=1)
                 if data_date != yesterday:
                     _LOGGER.warning(
-                        f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes."
+                        "HungaroMet data not updated yet (got %s, expected %s), "
+                        "will retry in 30 minutes.",
+                        data_date,
+                        yesterday,
                     )
 
                     # Schedule a one-off retry using async_call_later
@@ -246,8 +238,8 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         await check_and_reschedule_daily(None)
 
                     async_call_later(hass, 1800, retry_daily)
-            except Exception as e:
-                _LOGGER.error(f"Failed to parse date from time sensor: {e}")
+            except Exception as err:  # pragma: no cover - defensive logging
+                _LOGGER.error("Failed to parse date from time sensor: %s", err)
 
     async_track_time_change(
         hass, check_and_reschedule_daily, hour=9, minute=40, second=0
@@ -271,7 +263,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
-    name = entry.data.get("name", "HungaroMet weather daily")
     sensors = []
     try:
         data, station_info = await hass.async_add_executor_job(
@@ -637,8 +628,8 @@ async def async_setup_entry(
             )
         )
 
-    except Exception as e:
-        _LOGGER.error(f"Failed to fetch/process weather data: {e}")
+    except Exception as err:  # pragma: no cover - defensive logging
+        _LOGGER.error("Failed to fetch/process weather data: %s", err)
         return
     async_add_entities(sensors, True)
 
@@ -706,8 +697,8 @@ async def async_setup_entry(
                     continue
                 sensor._state = value
                 sensor.async_write_ha_state()
-        except Exception as e:
-            _LOGGER.error(f"Error updating {data_type} sensors: {e}")
+        except Exception as err:  # pragma: no cover - defensive logging
+            _LOGGER.error("Error updating %s sensors: %s", data_type, err)
 
     def schedule_update(now):
         async def check_and_reschedule():
@@ -721,13 +712,16 @@ async def async_setup_entry(
                     yesterday = datetime.now().date() - timedelta(days=1)
                     if data_date != yesterday:
                         _LOGGER.warning(
-                            f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes."
+                            "HungaroMet data not updated yet (got %s, expected %s), "
+                            "will retry in 30 minutes.",
+                            data_date,
+                            yesterday,
                         )
                         async_call_later(
                             hass, 1800, lambda _: hass.add_job(check_and_reschedule)
                         )
-                except Exception as e:
-                    _LOGGER.error(f"Failed to parse date from time sensor: {e}")
+                except Exception as err:  # pragma: no cover - defensive logging
+                    _LOGGER.error("Failed to parse date from time sensor: %s", err)
 
         hass.add_job(check_and_reschedule)
 

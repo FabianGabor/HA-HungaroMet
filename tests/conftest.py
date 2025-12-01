@@ -5,7 +5,6 @@ import sys
 import types
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_NAME = "custom_components.hungaromet"
 
@@ -54,5 +53,8 @@ def pytest_configure() -> None:
         "hourly_sensor",
         "ten_minutes_sensor",
         "radar_gif_image",
+        "radar_gif_creator",
+        "station_info_sensor",
+        "image",
     ):
         _load_module(module)

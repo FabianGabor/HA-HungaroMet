@@ -1,13 +1,12 @@
 [run]
 omit =
     tests/*
-    sensor.py
-    weather_data.py
-    radar_gif_creator.py
+    # HA framework-dependent files (require full integration test setup)
     config_flow.py
-    coordinator.py
     options_flow.py
+    coordinator.py
+    sensor.py
 
 [report]
-fail_under = 95
+fail_under = 99
 show_missing = True

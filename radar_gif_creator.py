@@ -12,7 +12,7 @@ REQUEST_TIMEOUT = 10
 
 try:
     from .const import RADAR_BASE_URL
-except ImportError:
+except ImportError:  # pragma: no cover - standalone CLI usage
     from const import RADAR_BASE_URL
 
 
@@ -106,5 +106,5 @@ def update_radar_gif():
         _LOGGER.error("Exception in update_radar_gif: %s", err)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     update_radar_gif()

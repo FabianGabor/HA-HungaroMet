@@ -14,7 +14,7 @@ try:
         URL_HOURLY,
         URL_TEN_MINUTES,
     )
-except ImportError:
+except ImportError:  # pragma: no cover - standalone CLI usage
     from const import (
         DEFAULT_DISTANCE_KM,
         URL_DAILY,
@@ -39,7 +39,7 @@ REQUEST_TIMEOUT = 15
 def _get_reference_coords(hass):
     if hass is not None and getattr(hass, "config", None) is not None:
         return hass.config.latitude, hass.config.longitude
-    if _local_config is not None:
+    if _local_config is not None:  # pragma: no cover - standalone CLI usage
         return _local_config.ref_lat, _local_config.ref_lon
     _LOGGER.error(
         "Reference coordinates are unavailable. Provide Home Assistant config "
@@ -348,7 +348,7 @@ def process_ten_minutes_data(hass=None, distance_km=DEFAULT_DISTANCE_KM):
     return result, station_info_list
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     # daily_data, daily_stations = process_daily_data()
     # print("Daily Data:", daily_data)
     # print("Daily Stations:", daily_stations)

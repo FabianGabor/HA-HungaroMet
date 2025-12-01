@@ -1,7 +1,8 @@
 """Tests for image.py platform setup"""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from custom_components.hungaromet.image import (
     async_setup_platform,

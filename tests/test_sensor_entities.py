@@ -599,10 +599,10 @@ async def test_radar_async_image_os_error_returns_none(tmp_path, monkeypatch):
     image._gif_path = str(gif_file)
     real_open = builtins.open
 
-    def _raise(path, mode="r", *args, **kwargs):
+    def _raise(path, *args, mode="r", **kwargs):
         if path == str(gif_file):
             raise OSError("boom")
-        return real_open(path, mode, *args, **kwargs)
+        return real_open(path, *args, mode=mode, **kwargs)
 
     monkeypatch.setattr(builtins, "open", _raise)
 
@@ -625,10 +625,10 @@ def test_radar_sync_image_os_error_returns_none(tmp_path, monkeypatch):
     image._gif_path = str(gif_file)
     real_open = builtins.open
 
-    def _raise(path, mode="r", *args, **kwargs):
+    def _raise(path, *args, mode="r", **kwargs):
         if path == str(gif_file):
             raise OSError("boom")
-        return real_open(path, mode, *args, **kwargs)
+        return real_open(path, *args, mode=mode, **kwargs)
 
     monkeypatch.setattr(builtins, "open", _raise)
 

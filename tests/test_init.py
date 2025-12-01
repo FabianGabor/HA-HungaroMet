@@ -1,13 +1,14 @@
 """Tests for __init__.py"""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 # Add parent directory to path to import __init__
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import __init__ as hungaromet_init
+import __init__ as hungaromet_init  # pylint: disable=wrong-import-position
 
 
 @pytest.mark.asyncio

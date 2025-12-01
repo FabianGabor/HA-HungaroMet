@@ -65,6 +65,12 @@ class HungarometWeatherTenMinutesSensor(SensorEntity):
             f"Entity {self._name} added to hass with unique_id {self._unique_id}"
         )
 
+    async def async_will_remove_from_hass(self):
+        self._added = False
+        _LOGGER.debug(
+            f"Entity {self._name} removed from hass; skipping scheduled updates"
+        )
+
     async def async_update_data(self):
         if not self._added:
             return

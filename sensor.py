@@ -161,13 +161,44 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     # Register update service
     async def handle_update_service(call):
         for sensor in sensors:
+            if sensor.hass is None or not getattr(sensor, "_added", False):
+                continue
             await sensor.async_update_data()
 
     hass.services.async_register("hungaromet_weather", "update", handle_update_service)
 
+    sensor_class_map = {
+        "daily": HungarometWeatherDailySensor,
+        "hourly": HungarometWeatherHourlySensor,
+        "ten_minutes": HungarometWeatherTenMinutesSensor,
+    }
+
     # Optimized scheduled updates - fetch once, update all sensors
     async def update_sensors_by_type(data_type: str):
         """Fetch data once and update all matching sensors."""
+        target_cls = sensor_class_map.get(data_type)
+        if target_cls is None:
+            _LOGGER.debug(
+                "HungaroMet: unsupported sensor type '%s' requested", data_type
+            )
+            return
+
+        active_sensors = [
+            sensor
+            for sensor in sensors
+            if isinstance(sensor, target_cls)
+            and sensor.hass is not None
+            and getattr(sensor, "_added", False)
+            and hasattr(sensor, "_key")
+        ]
+
+        if not active_sensors:
+            _LOGGER.debug(
+                "HungaroMet: skipping %s update because no active entities are enabled",
+                data_type,
+            )
+            return
+
         try:
             # Fetch data once
             if data_type == "hourly":
@@ -178,25 +209,20 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 data, _ = await hass.async_add_executor_job(
                     process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM
                 )
+            elif data_type == "daily":
+                data, _ = await hass.async_add_executor_job(
+                    process_daily_data, hass, DEFAULT_DISTANCE_KM
+                )
             else:
                 return
 
             # Update all matching sensors with the fetched data
-            for sensor in sensors:
-                if data_type == "hourly" and isinstance(
-                    sensor, HungarometWeatherHourlySensor
-                ):
-                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
-                    if value is not None:
-                        sensor._state = value
-                        sensor.async_write_ha_state()
-                elif data_type == "ten_minutes" and isinstance(
-                    sensor, HungarometWeatherTenMinutesSensor
-                ):
-                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
-                    if value is not None:
-                        sensor._state = value
-                        sensor.async_write_ha_state()
+            for sensor in active_sensors:
+                value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                if value is None:
+                    continue
+                sensor._state = value
+                sensor.async_write_ha_state()
         except Exception as e:
             _LOGGER.error(f"Error updating {data_type} sensors: {e}")
 
@@ -618,13 +644,44 @@ async def async_setup_entry(
 
     async def handle_update_service(call):
         for sensor in sensors:
+            if sensor.hass is None or not getattr(sensor, "_added", False):
+                continue
             await sensor.async_update_data()
 
     hass.services.async_register(DOMAIN, "update", handle_update_service)
 
+    sensor_class_map = {
+        "daily": HungarometWeatherDailySensor,
+        "hourly": HungarometWeatherHourlySensor,
+        "ten_minutes": HungarometWeatherTenMinutesSensor,
+    }
+
     # Optimized scheduled updates - fetch once, update all sensors
     async def update_sensors_by_type(data_type: str):
         """Fetch data once and update all matching sensors."""
+        target_cls = sensor_class_map.get(data_type)
+        if target_cls is None:
+            _LOGGER.debug(
+                "HungaroMet: unsupported sensor type '%s' requested", data_type
+            )
+            return
+
+        active_sensors = [
+            sensor
+            for sensor in sensors
+            if isinstance(sensor, target_cls)
+            and sensor.hass is not None
+            and getattr(sensor, "_added", False)
+            and hasattr(sensor, "_key")
+        ]
+
+        if not active_sensors:
+            _LOGGER.debug(
+                "HungaroMet: skipping %s update because no active entities are enabled",
+                data_type,
+            )
+            return
+
         try:
             # Fetch data once
             if data_type == "hourly":
@@ -643,28 +700,12 @@ async def async_setup_entry(
                 return
 
             # Update all matching sensors with the fetched data
-            for sensor in sensors:
-                if data_type == "hourly" and isinstance(
-                    sensor, HungarometWeatherHourlySensor
-                ):
-                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
-                    if value is not None:
-                        sensor._state = value
-                        sensor.async_write_ha_state()
-                elif data_type == "ten_minutes" and isinstance(
-                    sensor, HungarometWeatherTenMinutesSensor
-                ):
-                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
-                    if value is not None:
-                        sensor._state = value
-                        sensor.async_write_ha_state()
-                elif data_type == "daily" and isinstance(
-                    sensor, HungarometWeatherDailySensor
-                ):
-                    value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
-                    if value is not None:
-                        sensor._state = value
-                        sensor.async_write_ha_state()
+            for sensor in active_sensors:
+                value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                if value is None:
+                    continue
+                sensor._state = value
+                sensor.async_write_ha_state()
         except Exception as e:
             _LOGGER.error(f"Error updating {data_type} sensors: {e}")
 

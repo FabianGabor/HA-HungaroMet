@@ -1,0 +1,5 @@
+homeassistant>=2024.12.0
+pytest
+pytest-asyncio
+pytest-cov
+pylint

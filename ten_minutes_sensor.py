@@ -5,12 +5,13 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.util import dt as dt_util
 
 from .weather_data import process_ten_minutes_data
+from .const import DEFAULT_DISTANCE_KM
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class HungarometWeatherTenMinutesSensor(SensorEntity):
-    def __init__(self, hass, name, value, unit, key):
+    def __init__(self, hass, name, value, unit, key, coordinator=None):
         self.hass = hass
         self._name = name
         self._state = value
@@ -19,6 +20,7 @@ class HungarometWeatherTenMinutesSensor(SensorEntity):
         self._device_id = "hungaromet_weather_ten_minutes"
         self._unique_id = f"{self._device_id}_{self._name.lower().replace(' ', '_')}"
         self._added = False
+        self.coordinator = coordinator
 
     @property
     def name(self):
@@ -33,7 +35,7 @@ class HungarometWeatherTenMinutesSensor(SensorEntity):
                 local_dt = dt_util.as_local(dt_utc)
                 return local_dt.strftime("%Y-%m-%d %H:%M")
             except Exception as e:
-                _LOGGER.warning(f"Failed to convert time for ten minutes sensor: {e}")
+                _LOGGER.warning("Failed to convert time for ten minutes sensor: %s", e)
                 return self._state
         if isinstance(self._state, (int, float)):
             return round(self._state, 2)
@@ -60,17 +62,30 @@ class HungarometWeatherTenMinutesSensor(SensorEntity):
     async def async_added_to_hass(self):
         self._added = True
         _LOGGER.debug(
-            f"Entity {self._name} added to hass with unique_id {self._unique_id}"
+            "Entity %s added to hass with unique_id %s",
+            self._name,
+            self._unique_id,
+        )
+
+    async def async_will_remove_from_hass(self):
+        self._added = False
+        _LOGGER.debug(
+            "Entity %s removed from hass; skipping scheduled updates",
+            self._name,
         )
 
     async def async_update_data(self):
         if not self._added:
             return
-        from .const import DEFAULT_DISTANCE_KM
 
-        data, _ = await self.hass.async_add_executor_job(
-            process_ten_minutes_data, self.hass, DEFAULT_DISTANCE_KM
-        )
+        # Use coordinator data if available, otherwise fetch directly
+        if self.coordinator and self.coordinator.data:
+            data = self.coordinator.data.get("data", {})
+        else:
+            data, _ = await self.hass.async_add_executor_job(
+                process_ten_minutes_data, self.hass, DEFAULT_DISTANCE_KM
+            )
+
         # Try both the raw key and the 'average_' + key
         value = data.get(self._key)
         if value is None:

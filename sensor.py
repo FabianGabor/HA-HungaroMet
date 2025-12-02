@@ -1,6 +1,4 @@
-"""
-Home Assistant custom component for HungaroMet weather sensors (daily, hourly, monthly).
-"""
+"""Home Assistant custom component for HungaroMet weather sensors."""
 
 import logging
 from datetime import datetime, timedelta
@@ -11,15 +9,7 @@ from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_time_change, async_call_later
-from homeassistant.helpers.typing import ConfigType
-import requests
-import zipfile
-import io
-import pandas as pd
-import math
-from datetime import time, timedelta, datetime
-from .const import DOMAIN, DEFAULT_NAME, CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM
+from homeassistant.helpers.event import async_call_later, async_track_time_change
 
 from .const import CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM, DEFAULT_NAME, DOMAIN
 from .daily_sensor import HungarometWeatherDailySensor
@@ -77,7 +67,6 @@ WE_CODES = {
 
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    name = config.get(CONF_NAME)
     distance_km = config.get(CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM)
     sensors = []
     try:
@@ -153,22 +142,82 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 hass, "HungaroMet Állomások", station_info, "platform"
             )
         )
-    except Exception as e:
-        _LOGGER.error(f"Failed to fetch/process weather data: {e}")
+    except Exception as err:  # pragma: no cover - defensive logging
+        _LOGGER.error("Failed to fetch/process weather data: %s", err)
         return
     async_add_entities(sensors, True)
 
     # Register update service
     async def handle_update_service(call):
         for sensor in sensors:
+            if sensor.hass is None or not getattr(sensor, "_added", False):
+                continue
             await sensor.async_update_data()
 
     hass.services.async_register("hungaromet_weather", "update", handle_update_service)
 
+    sensor_class_map = {
+        "daily": HungarometWeatherDailySensor,
+        "hourly": HungarometWeatherHourlySensor,
+        "ten_minutes": HungarometWeatherTenMinutesSensor,
+    }
+
+    # Optimized scheduled updates - fetch once, update all sensors
+    async def update_sensors_by_type(data_type: str):
+        """Fetch data once and update all matching sensors."""
+        target_cls = sensor_class_map.get(data_type)
+        if target_cls is None:
+            _LOGGER.debug(
+                "HungaroMet: unsupported sensor type '%s' requested", data_type
+            )
+            return
+
+        active_sensors = [
+            sensor
+            for sensor in sensors
+            if isinstance(sensor, target_cls)
+            and sensor.hass is not None
+            and getattr(sensor, "_added", False)
+            and hasattr(sensor, "_key")
+        ]
+
+        if not active_sensors:
+            _LOGGER.debug(
+                "HungaroMet: skipping %s update because no active entities are enabled",
+                data_type,
+            )
+            return
+
+        try:
+            # Fetch data once
+            if data_type == "hourly":
+                data, _ = await hass.async_add_executor_job(
+                    process_hourly_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "ten_minutes":
+                data, _ = await hass.async_add_executor_job(
+                    process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "daily":
+                data, _ = await hass.async_add_executor_job(
+                    process_daily_data, hass, DEFAULT_DISTANCE_KM
+                )
+            else:
+                return
+
+            # Update all matching sensors with the fetched data
+            for sensor in active_sensors:
+                value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                if value is None:
+                    continue
+                sensor._state = value
+                sensor.async_write_ha_state()
+        except Exception as err:  # pragma: no cover - defensive logging
+            _LOGGER.error("Error updating %s sensors: %s", data_type, err)
+
     # Schedule daily update
     async def check_and_reschedule_daily(now):
-        for sensor in sensors:
-            await sensor.async_update_data()
+        await update_sensors_by_type("daily")
         time_sensor = next(
             (s for s in sensors if getattr(s, "_key", None) == "time"), None
         )
@@ -178,7 +227,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                 yesterday = datetime.now().date() - timedelta(days=1)
                 if data_date != yesterday:
                     _LOGGER.warning(
-                        f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes."
+                        "HungaroMet data not updated yet (got %s, expected %s), "
+                        "will retry in 30 minutes.",
+                        data_date,
+                        yesterday,
                     )
 
                     # Schedule a one-off retry using async_call_later
@@ -186,28 +238,22 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
                         await check_and_reschedule_daily(None)
 
                     async_call_later(hass, 1800, retry_daily)
-            except Exception as e:
-                _LOGGER.error(f"Failed to parse date from time sensor: {e}")
+            except Exception as err:  # pragma: no cover - defensive logging
+                _LOGGER.error("Failed to parse date from time sensor: %s", err)
 
     async_track_time_change(
         hass, check_and_reschedule_daily, hour=9, minute=40, second=0
     )
 
-    # Schedule hourly update
+    # Schedule hourly update - optimized to fetch once
     async def check_and_reschedule_hourly(now):
-        for sensor in sensors:
-            if hasattr(sensor, "_key") and (
-                sensor._key.startswith("oras_") or "Órás" in sensor._name.lower()
-            ):
-                await sensor.async_update_data()
+        await update_sensors_by_type("hourly")
 
     async_track_time_change(hass, check_and_reschedule_hourly, minute=20, second=59)
 
-    # Schedule ten minutes update
+    # Schedule ten minutes update - optimized to fetch once
     async def check_and_reschedule_ten_minutes(now):
-        for sensor in sensors:
-            if isinstance(sensor, HungarometWeatherTenMinutesSensor):
-                await sensor.async_update_data()
+        await update_sensors_by_type("ten_minutes")
 
     async_track_time_change(
         hass, check_and_reschedule_ten_minutes, minute=range(0, 60, 10), second=59
@@ -217,7 +263,6 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities
 ):
-    name = entry.data.get("name", "HungaroMet weather daily")
     sensors = []
     try:
         data, station_info = await hass.async_add_executor_job(
@@ -583,21 +628,81 @@ async def async_setup_entry(
             )
         )
 
-    except Exception as e:
-        _LOGGER.error(f"Failed to fetch/process weather data: {e}")
+    except Exception as err:  # pragma: no cover - defensive logging
+        _LOGGER.error("Failed to fetch/process weather data: %s", err)
         return
     async_add_entities(sensors, True)
 
     async def handle_update_service(call):
         for sensor in sensors:
+            if sensor.hass is None or not getattr(sensor, "_added", False):
+                continue
             await sensor.async_update_data()
 
     hass.services.async_register(DOMAIN, "update", handle_update_service)
 
+    sensor_class_map = {
+        "daily": HungarometWeatherDailySensor,
+        "hourly": HungarometWeatherHourlySensor,
+        "ten_minutes": HungarometWeatherTenMinutesSensor,
+    }
+
+    # Optimized scheduled updates - fetch once, update all sensors
+    async def update_sensors_by_type(data_type: str):
+        """Fetch data once and update all matching sensors."""
+        target_cls = sensor_class_map.get(data_type)
+        if target_cls is None:
+            _LOGGER.debug(
+                "HungaroMet: unsupported sensor type '%s' requested", data_type
+            )
+            return
+
+        active_sensors = [
+            sensor
+            for sensor in sensors
+            if isinstance(sensor, target_cls)
+            and sensor.hass is not None
+            and getattr(sensor, "_added", False)
+            and hasattr(sensor, "_key")
+        ]
+
+        if not active_sensors:
+            _LOGGER.debug(
+                "HungaroMet: skipping %s update because no active entities are enabled",
+                data_type,
+            )
+            return
+
+        try:
+            # Fetch data once
+            if data_type == "hourly":
+                data, _ = await hass.async_add_executor_job(
+                    process_hourly_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "ten_minutes":
+                data, _ = await hass.async_add_executor_job(
+                    process_ten_minutes_data, hass, DEFAULT_DISTANCE_KM
+                )
+            elif data_type == "daily":
+                data, _ = await hass.async_add_executor_job(
+                    process_daily_data, hass, DEFAULT_DISTANCE_KM
+                )
+            else:
+                return
+
+            # Update all matching sensors with the fetched data
+            for sensor in active_sensors:
+                value = data.get(sensor._key) or data.get(f"average_{sensor._key}")
+                if value is None:
+                    continue
+                sensor._state = value
+                sensor.async_write_ha_state()
+        except Exception as err:  # pragma: no cover - defensive logging
+            _LOGGER.error("Error updating %s sensors: %s", data_type, err)
+
     def schedule_update(now):
         async def check_and_reschedule():
-            for sensor in sensors:
-                await sensor.async_update_data()
+            await update_sensors_by_type("daily")
             time_sensor = next(
                 (s for s in sensors if getattr(s, "_key", None) == "time"), None
             )
@@ -607,13 +712,16 @@ async def async_setup_entry(
                     yesterday = datetime.now().date() - timedelta(days=1)
                     if data_date != yesterday:
                         _LOGGER.warning(
-                            f"HungaroMet data not updated yet (got {data_date}, expected {yesterday}), will retry in 30 minutes."
+                            "HungaroMet data not updated yet (got %s, expected %s), "
+                            "will retry in 30 minutes.",
+                            data_date,
+                            yesterday,
                         )
                         async_call_later(
                             hass, 1800, lambda _: hass.add_job(check_and_reschedule)
                         )
-                except Exception as e:
-                    _LOGGER.error(f"Failed to parse date from time sensor: {e}")
+                except Exception as err:  # pragma: no cover - defensive logging
+                    _LOGGER.error("Failed to parse date from time sensor: %s", err)
 
         hass.add_job(check_and_reschedule)
 
@@ -621,11 +729,7 @@ async def async_setup_entry(
 
     def schedule_hourly_update(now):
         async def check_and_reschedule_hourly():
-            for sensor in sensors:
-                if hasattr(sensor, "_key") and (
-                    sensor._key.startswith("oras_") or "Órás" in sensor._name.lower()
-                ):
-                    await sensor.async_update_data()
+            await update_sensors_by_type("hourly")
 
         hass.add_job(check_and_reschedule_hourly)
 
@@ -633,10 +737,7 @@ async def async_setup_entry(
 
     def schedule_ten_minutes_update(now):
         async def check_and_reschedule_ten_minutes():
-            for sensor in sensors:
-                # Update only ten minutes sensors by class type
-                if isinstance(sensor, HungarometWeatherTenMinutesSensor):
-                    await sensor.async_update_data()
+            await update_sensors_by_type("ten_minutes")
 
         hass.add_job(check_and_reschedule_ten_minutes)
 

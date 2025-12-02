@@ -1,6 +1,6 @@
 {
     "name": "Python DevContainer",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+    "image": "mcr.microsoft.com/devcontainers/python:3.13",
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": {
             "installZsh": true,
@@ -105,5 +105,5 @@
             ]
         }
     },
-    "postCreateCommand": "pip install -r requirements.txt"
+    "postCreateCommand": "pip install -r requirements.txt -r requirements-dev.txt"
 }

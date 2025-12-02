@@ -2,7 +2,10 @@ import logging
 
 from homeassistant.components.sensor import SensorEntity
 
+from .weather_data import process_daily_data
+
 _LOGGER = logging.getLogger(__name__)
+
 
 class HungarometStationInfoSensor(SensorEntity):
     def __init__(self, hass, name, station_info, sensor_type="daily"):
@@ -42,13 +45,25 @@ class HungarometStationInfoSensor(SensorEntity):
 
     async def async_added_to_hass(self):
         self._added = True
-        _LOGGER.debug(f"Entity {self._name} added to hass with unique_id {self._unique_id}")
+        _LOGGER.debug(
+            "Entity %s added to hass with unique_id %s",
+            self._name,
+            self._unique_id,
+        )
+
+    async def async_will_remove_from_hass(self):
+        self._added = False
+        _LOGGER.debug(
+            "Entity %s removed from hass; skipping scheduled updates",
+            self._name,
+        )
 
     async def async_update_data(self):
         if not self._added:
             return
-        from .sensor import process_daily_data
-        data, stations = await self.hass.async_add_executor_job(process_daily_data, self.hass)
+        _, stations = await self.hass.async_add_executor_job(
+            process_daily_data, self.hass
+        )
         self._station_info = stations
         self.async_write_ha_state()
 

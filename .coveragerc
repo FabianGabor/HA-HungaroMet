@@ -1,0 +1,12 @@
+[run]
+omit =
+    tests/*
+    # HA framework-dependent files (require full integration test setup)
+    config_flow.py
+    options_flow.py
+    coordinator.py
+    sensor.py
+
+[report]
+fail_under = 99
+show_missing = True

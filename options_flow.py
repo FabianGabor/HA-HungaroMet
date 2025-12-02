@@ -16,6 +16,9 @@ class HungaroMetOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Optional(CONF_DISTANCE_KM, default=options.get(CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM)): vol.All(vol.Coerce(float), vol.Range(min=1, max=100)),
-            })
+                vol.Optional(
+                    CONF_DISTANCE_KM,
+                    default=options.get(CONF_DISTANCE_KM, DEFAULT_DISTANCE_KM),
+                ): vol.All(vol.Coerce(float), vol.Range(min=1, max=100)),
+            }),
         )

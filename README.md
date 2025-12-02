@@ -1,49 +1,69 @@
-# Weather Daily Home Assistant Integration
+# HungaroMet Weather - Home Assistant Integration
 
-This custom component provides sensors for average UPE and RAU values from the Hungarian daily synoptic weather report, filtered by proximity to a reference location.
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![GitHub Release](https://img.shields.io/github/v/release/FabianGabor/HA-HungaroMet)](https://github.com/FabianGabor/HA-HungaroMet/releases)
+
+This custom component provides weather sensors from the Hungarian Meteorological Service (HungaroMet), including daily synoptic weather reports, hourly data, 10-minute observations, and radar imagery.
+
+## Features
+
+- **Daily Sensors**: Average UPE and RAU values from synoptic weather reports
+- **Hourly Sensors**: Hourly weather observations
+- **10-Minute Sensors**: Near real-time weather data
+- **Station Info**: Weather station information
+- **Radar Images**: Animated radar GIF imagery
 
 ## Installation
 
-1. Copy the `weather_daily` folder to your Home Assistant `custom_components` directory.
-2. Ensure you have the required Python packages: `pandas`, `pygeohash`, `requests` (Home Assistant will install them automatically).
-3. Add the following to your `configuration.yaml`:
+### HACS (Recommended)
 
-```yaml
-sensor:
-  - platform: weather_daily
-    name: Weather Daily
-```
+1. Open HACS in your Home Assistant instance
+2. Click on "Integrations"
+3. Click the three dots in the top right corner
+4. Select "Custom repositories"
+5. Add `https://github.com/FabianGabor/HA-HungaroMet` as a custom repository
+6. Select "Integration" as the category
+7. Click "Add"
+8. Search for "HungaroMet Weather" and install it
+9. Restart Home Assistant
+10. Go to Settings → Devices & Services → Add Integration → Search for "HungaroMet Weather"
 
-4. Restart Home Assistant.
+### Manual Installation
+
+1. Copy the `custom_components/hungaromet` folder to your Home Assistant `custom_components` directory
+2. Restart Home Assistant
+3. Go to Settings → Devices & Services → Add Integration → Search for "HungaroMet Weather"
 
 ## Configuration
-- `name`: (Optional) Prefix for the sensor names. Default: `Weather Daily`.
+
+This integration is configured through the UI. After installation:
+
+1. Go to Settings → Devices & Services
+2. Click "Add Integration"
+3. Search for "HungaroMet Weather"
+4. Follow the configuration wizard
 
 ## Provided Sensors
-- `<name> UPE`: Average UPE value (mm) for stations within 20km of the reference location.
-- `<name> RAU`: Average RAU value (mm) for stations within 20km of the reference location.
 
-## Reference Location
-- The reference coordinates are hardcoded as `48.0288119, 21.7624586` (can be changed in the code).
+- **UPE**: Precipitation values (mm) for stations near your location
+- **RAU**: Additional precipitation data (mm) for stations near your location
 
 ## Development & Testing
 
 ### Running Tests
+
 ```bash
-pytest tests/ --cov=. --cov-report=term-missing
+pytest tests/ --cov=custom_components/hungaromet --cov-report=term-missing
 ```
 
 ### Code Quality
+
 ```bash
-pylint daily_sensor.py hourly_sensor.py ten_minutes_sensor.py station_info_sensor.py radar_gif_image.py radar_gif_creator.py sensor.py weather_data.py image.py config_flow.py options_flow.py __init__.py coordinator.py
+pylint custom_components/hungaromet/
 ```
 
 ### Quality Standards
-- **Test Coverage:** ≥99% (currently 99.07%)
+
+- **Test Coverage:** ≥100%
 - **Pylint Score:** 10.00/10
-- **All tests must pass:** 86/86 tests passing
-
-See [TESTING.md](TESTING.md) for comprehensive testing documentation.
-
-## License
-MIT
+- **All tests must pass:**

@@ -25,24 +25,10 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Run pylint
-        run: |
-          pylint \
-            daily_sensor.py \
-            hourly_sensor.py \
-            ten_minutes_sensor.py \
-            station_info_sensor.py \
-            radar_gif_image.py \
-            radar_gif_creator.py \
-            sensor.py \
-            weather_data.py \
-            image.py \
-            config_flow.py \
-            options_flow.py \
-            __init__.py \
-            coordinator.py
+        run: pylint custom_components/hungaromet/
 
       - name: Run pytest with coverage
-        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=99
+        run: pytest --cov=custom_components/hungaromet --cov-report=term-missing --cov-report=xml --cov-fail-under=99
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

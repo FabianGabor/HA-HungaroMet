@@ -1,8 +1,5 @@
 {
   "name": "HungaroMet Weather",
   "homeassistant": "2024.1.0",
-  "render_readme": true,
-  "zip_release": false,
-  "content_in_root": false,
-  "iot_class": "cloud_polling"
+  "render_readme": true
 }
